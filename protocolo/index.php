@@ -68,7 +68,7 @@ if ($is_admin && isset($_POST['salvar'])) {
 // JSON RELATÓRIO
 if (isset($_GET['gerar_relatorio'])) {
     $inicio = $_GET['inicio']; $fim = $_GET['fim'];
-    $stmt = $pdo->prepare("SELECT * FROM encomendas WHERE data_envio BETWEEN ? AND ? ORDER BY data_envio DESC");
+    $stmt = $pdo->prepare("SELECT * FROM encomendas WHERE data_envio BETWEEN ? AND ? ORDER BY data_envio ASC");
     $stmt->execute([$inicio, $fim]);
     echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
     exit;
@@ -103,8 +103,9 @@ if (isset($_GET['gerar_relatorio'])) {
             <?php if (!$is_admin): ?>
                 <button onclick="document.getElementById('modalLogin').classList.remove('hidden')" class="text-xs font-bold text-gray-400 hover:text-militar transition uppercase tracking-widest">Acesso Restrito</button>
             <?php else: ?>
-                <button onclick="document.getElementById('modalRelatorio').classList.remove('hidden')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-blue-700">RELATÓRIOS</button>
-                <a href="?logout" class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-red-700">SAIR</a>
+                <button onclick="document.getElementById('modalRelatorio').classList.remove('hidden')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-blue-700 uppercase">Relatórios</button>
+                <button onclick="abrirModalFechamento()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-emerald-700 uppercase">Fechamento</button>
+                <a href="?logout" class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md hover:bg-red-700 uppercase">Sair</a>
             <?php endif; ?>
         </div>
     </header>
@@ -154,6 +155,7 @@ if (isset($_GET['gerar_relatorio'])) {
                         <th class="p-4">Destinatário</th>
                         <th class="p-4">Nº Documento</th>
                         <th class="p-4">Rastreio</th>
+                        <?php if ($is_admin): ?> <th class="p-4">Valor</th> <?php endif; ?>
                         <th class="p-4 text-center">Ações</th>
                     </tr>
                 </thead>
@@ -175,8 +177,22 @@ if (isset($_GET['gerar_relatorio'])) {
                             <div class="text-xs text-gray-600 font-bold busca-alvo"><?= $row['documento'] ?></div>
                         </td>
                         <td class="p-4 font-mono text-xs font-bold text-blue-600"><?= $row['rastreio'] ?: '---' ?></td>
-                        <td class="p-4 text-center space-x-2 text-gray-300">
+                        
+                        <?php if ($is_admin): ?>
+                        <td class="p-4 text-xs font-bold text-emerald-700">
+                            <?= $row['valor'] > 0 ? 'R$ ' . number_format($row['valor'], 2, ',', '.') : '---' ?>
+                        </td>
+                        <?php endif; ?>
+
+                        <td class="p-4 text-center space-x-3 text-gray-400">
+                            <?php if ($row['rastreio']): ?>
+                                <a href="https://www.muambator.com.br/pacotes/<?= $row['rastreio'] ?>/detalhes/" target="_blank" title="Rastrear" class="hover:text-blue-600 transition">
+                                    <i class="fas fa-truck-loading"></i>
+                                </a>
+                            <?php endif; ?>
+
                             <button onclick='imprimirCupom(<?= json_encode($row) ?>)' title="Imprimir" class="hover:text-gray-800"><i class="fas fa-print"></i></button>
+                            
                             <?php if ($is_admin): ?>
                                 <button onclick='preencherEdicao(<?= json_encode($row) ?>)' title="Editar" class="hover:text-militar"><i class="fas fa-edit"></i></button>
                                 <button onclick="confirmarExclusao(<?= $row['id'] ?>)" title="Excluir" class="hover:text-red-600"><i class="fas fa-trash-alt"></i></button>
@@ -191,14 +207,27 @@ if (isset($_GET['gerar_relatorio'])) {
     </main>
 
     <div id="modalRelatorio" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 no-print">
-        <div class="bg-white p-6 rounded-2xl w-full max-w-sm">
-            <h2 class="text-xl font-bold mb-4 text-center uppercase text-gray-500">Relatório</h2>
-            <div class="space-y-4 mb-6">
+        <div class="bg-white p-6 rounded-2xl w-full max-w-sm text-center">
+            <h2 class="text-xl font-bold mb-4 uppercase text-gray-500">Relatório Geral</h2>
+            <div class="space-y-4 mb-6 text-left">
                 <div><label class="text-[10px] font-bold text-gray-400 uppercase">Início</label><input type="date" id="rel_inicio"></div>
                 <div><label class="text-[10px] font-bold text-gray-400 uppercase">Fim</label><input type="date" id="rel_fim"></div>
             </div>
-            <button onclick="gerarRelatorioFull()" class="w-full bg-militar text-white py-3 rounded-xl font-bold">GERAR PDF</button>
-            <button onclick="document.getElementById('modalRelatorio').classList.add('hidden')" class="w-full mt-3 text-gray-400 text-xs">Fechar</button>
+            <button onclick="gerarRelatorioFull('simples')" class="w-full bg-militar text-white py-3 rounded-xl font-bold uppercase mb-2">Gerar PDF</button>
+            <button onclick="document.getElementById('modalRelatorio').classList.add('hidden')" class="w-full text-gray-400 text-xs uppercase">Fechar</button>
+        </div>
+    </div>
+
+    <div id="modalFechamento" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 no-print">
+        <div class="bg-white p-6 rounded-2xl w-full max-w-sm text-center">
+            <h2 class="text-xl font-bold mb-4 uppercase text-emerald-600">Fechamento de Valores</h2>
+            <p class="text-[10px] text-gray-400 mb-4 uppercase">Soma de valores por período selecionado</p>
+            <div class="space-y-4 mb-6 text-left">
+                <div><label class="text-[10px] font-bold text-gray-400 uppercase">Data Inicial</label><input type="date" id="fech_inicio"></div>
+                <div><label class="text-[10px] font-bold text-gray-400 uppercase">Data Final</label><input type="date" id="fech_fim"></div>
+            </div>
+            <button onclick="gerarRelatorioFull('financeiro')" class="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold uppercase mb-2">Gerar Fechamento</button>
+            <button onclick="document.getElementById('modalFechamento').classList.add('hidden')" class="w-full text-gray-400 text-xs uppercase">Fechar</button>
         </div>
     </div>
 
@@ -215,10 +244,14 @@ if (isset($_GET['gerar_relatorio'])) {
     </div>
 
     <footer class="mt-8 text-center text-[15px] text-gray-300 no-print pb-12 uppercase font-bold tracking-[0.4em]">
-        DESENVOLVIDO POR SD FELIPE ALENCAR
+        Desenvolvido por SD FELIPE ALENCAR
     </footer>
 
     <script>
+        function abrirModalFechamento() {
+            document.getElementById('modalFechamento').classList.remove('hidden');
+        }
+
         function confirmarExclusao(id) {
             if (confirm("Deseja excluir este registro permanentemente?")) {
                 window.location.href = "index.php?excluir=" + id;
@@ -273,24 +306,70 @@ if (isset($_GET['gerar_relatorio'])) {
             win.document.write(conteudo); win.document.close();
         }
 
-        function gerarRelatorioFull() {
-            var ini = document.getElementById('rel_inicio').value;
-            var fim = document.getElementById('rel_fim').value;
+        function gerarRelatorioFull(tipo) {
+            var ini, fim;
+            if(tipo === 'financeiro') {
+                ini = document.getElementById('fech_inicio').value;
+                fim = document.getElementById('fech_fim').value;
+            } else {
+                ini = document.getElementById('rel_inicio').value;
+                fim = document.getElementById('rel_fim').value;
+            }
+
             if(!ini || !fim) return alert("Datas necessárias!");
+            var iniF = ini.split('-').reverse().join('/');
+            var fimF = fim.split('-').reverse().join('/');
+
             fetch('index.php?gerar_relatorio=1&inicio=' + ini + '&fim=' + fim)
                 .then(r => r.json()).then(dados => {
                     var win = window.open('', '', 'width=1000,height=800');
                     var linhas = '';
+                    var totalSoma = 0;
+
                     dados.forEach(d => {
+                        var valorNum = parseFloat(d.valor) || 0;
+                        totalSoma += valorNum;
+                        
                         linhas += `<tr>
-                            <td style="border:1px solid #ddd; padding:6px;">${d.data_envio.split('-').reverse().join('/')}</td>
-                            <td style="border:1px solid #ddd; padding:6px; text-transform:uppercase;">${d.destinatario}</td>
-                            <td style="border:1px solid #ddd; padding:6px;">${d.documento}</td>
-                            <td style="border:1px solid #ddd; padding:6px;">${d.rastreio || '---'}</td>
-                            <td style="border:1px solid #ddd; padding:6px; font-weight:bold; color:${d.status === 'Protocolado' ? 'green' : 'orange'}">${d.status.toUpperCase()}</td>
+                            <td style="border:1px solid #ddd; padding:8px;">${d.data_envio.split('-').reverse().join('/')}</td>
+                            <td style="border:1px solid #ddd; padding:8px; text-transform:uppercase;">${d.destinatario}</td>
+                            <td style="border:1px solid #ddd; padding:8px;">${d.documento}</td>
+                            <td style="border:1px solid #ddd; padding:8px;">${d.rastreio || '---'}</td>
+                            ${tipo === 'financeiro' ? `<td style="border:1px solid #ddd; padding:8px; text-align:right;">R$ ${valorNum.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>` : `<td style="border:1px solid #ddd; padding:8px; font-weight:bold; color:${d.status === 'Protocolado' ? 'green' : 'orange'}">${d.status.toUpperCase()}</td>`}
                         </tr>`;
                     });
-                    var html = `<html><body style="font-family:sans-serif; padding:40px;"><center><img src="image_b48588.png" style="height:80px;"><h2>2º BEC</h2><h3>RELATÓRIO DE ENVIO</h3></center><table style="width:100%; border-collapse:collapse; font-size:10px; margin-top:20px;"><thead><tr style="background:#eee;"><th>DATA</th><th>DESTINATÁRIO</th><th>DOC</th><th>RASTREIO</th><th>STATUS</th></tr></thead><tbody>${linhas}</tbody></table><script>window.print();<\/script></body></html>`;
+
+                    var tituloRelatorio = tipo === 'financeiro' ? 'FECHAMENTO DE VALORES' : 'RELATÓRIO DE ENVIO';
+                    var html = `<html><body style="font-family:sans-serif; padding:40px; color:#333;">
+                        <center>
+                            <img src="image_b48588.png" style="height:80px;">
+                            <h2 style="margin:5px 0;">2º BATALHÃO DE ENGENHARIA DE CONSTRUÇÃO</h2>
+                            <h3 style="color:#666; margin:0;">${tituloRelatorio}</h3>
+                            <p style="font-size:12px;">PERÍODO: ${iniF} A ${fimF}</p>
+                        </center>
+                        <table style="width:100%; border-collapse:collapse; font-size:11px; margin-top:20px;">
+                            <thead><tr style="background:#f2f2f2; text-align:left;">
+                                <th style="padding:10px; border:1px solid #ddd;">DATA</th>
+                                <th style="padding:10px; border:1px solid #ddd;">DESTINATÁRIO</th>
+                                <th style="padding:10px; border:1px solid #ddd;">DOC</th>
+                                <th style="padding:10px; border:1px solid #ddd;">RASTREIO</th>
+                                <th style="padding:10px; border:1px solid #ddd; ${tipo === 'financeiro' ? 'text-align:right;' : ''}">${tipo === 'financeiro' ? 'VALOR' : 'STATUS'}</th>
+                            </tr></thead>
+                            <tbody>${linhas}</tbody>
+                            ${tipo === 'financeiro' ? `
+                            <tfoot>
+                                <tr style="background:#f9f9f9; font-size:14px;">
+                                    <td colspan="4" style="padding:15px; border:1px solid #ddd; text-align:right; font-weight:bold;">TOTAL:</td>
+                                    <td style="padding:15px; border:1px solid #ddd; text-align:right; font-weight:bold; color:#1a4731;">R$ ${totalSoma.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</td>
+                                </tr>
+                            </tfoot>` : ''}
+                        </table>
+                        <div style="margin-top:50px; text-align:center; font-size:10px;">
+                            <p>_________________________________________________________</p>
+                            <p>RESPONSÁVEL PELO FECHAMENTO</p>
+                            <p>Emitido em: ${new Date().toLocaleString('pt-BR')}</p>
+                        </div>
+                        <script>window.print();<\/script></body></html>`;
                     win.document.write(html); win.document.close();
                 });
         }
